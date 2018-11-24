@@ -6,12 +6,17 @@ WATER = 0
 DIRT = 1
 GRASS = 2
 
+GREEN = (0,255,0)
+
 display_width = 800
 display_height = 600
 
 x = display_width*.45
 y = display_height*.8
 playerSize = 20
+
+all_sprites = pygame.sprite.Group()
+map_sprites = pygame.sprite.Group()
 
 tileset = {0:pygame.image.load('water.png'), 1:pygame.image.load('dirt.png'), 2:pygame.image.load('grass.png')}
 
@@ -47,6 +52,16 @@ def drawMap(map):
 			y = row * tileSize
 			drawTile(int(tile), x, y)
 
+def loadMap(map):
+	for row in range(0, len(map)):
+		for tileIn in range(0, len(map[0])):
+			tile = map[row][tileIn]
+			if int(tile) < 2:
+				x = tileIn * tileSize
+				y = row * tileSize
+				map_sprites.add(Tile(int(tile), x, y))
+
+
 def getCurrentTile(x, y):
 	row = math.floor(y/tileSize)
 	col = math.floor(x/tileSize)
@@ -54,7 +69,7 @@ def getCurrentTile(x, y):
 
 xspeed = 4
 yspeed = xspeed
-dspeed = math.sqrt(xspeed)
+dspeed = xspeed*.75
 
 leftKey = pygame.K_a
 rightKey = pygame.K_d
@@ -64,15 +79,24 @@ downKey = pygame.K_s
 
 keysPressed = [0,0,0,0] #W, A, S, D (or up, left, down, right)
 
-class Tile(pygame.sprite.Sprite):
+class Tile(pygame.sprite.DirtySprite):
+	def __init__(self, terrainID, x, y):
+		pygame.sprite.DirtySprite.__init__(self)
+		self.image = tileset[terrainID]
+		self.rect = self.image.get_rect()
+		self.rect.x = x
+		self.rect.y = y
+		self.dirty = 0
+		self.defaultImage = self.image
 
-class Player(pygame.sprite.Sprite):
+class Player(pygame.sprite.DirtySprite):
 	def __init__(self):
-		pygame.sprite.Sprite.__init__(self)
+		pygame.sprite.DirtySprite.__init__(self)
 		self.image = pygame.image.load('player.png')
 		self.rect = self.image.get_rect()
 		self.vx = 0
 		self.vy = 0
+		self.lastC = Tile(0,0,0)
 	def update(self):
 		self.vx = 0
 		self.vy = 0
@@ -107,14 +131,35 @@ class Player(pygame.sprite.Sprite):
 		if self.rect.x < 0:
 			self.rect.x = 0
 		if self.rect.y > display_height-playerSize:
-			self.rect.y = display_height-playerSize
+			self.rect.y = display_height-playerSizewd
 		if self.rect.y < 0:
 			self.rect.y = 0
+		self.dirty = 1
+		
+		# collision detection
+		collideSpriteList = pygame.sprite.spritecollide(self, map_sprites, False, collided = None)
+		if(collideSpriteList): #if there was a collision
+			collideSprite = collideSpriteList[int(len(collideSpriteList)/2)]
+			collideX = collideSprite.rect.x
+			collideY = collideSprite.rect.y
+			collideSprite.image = tileset[2]
+			collisionBuffer = playerSize
+			if self.rect.x in range(collideX-collisionBuffer, collideX+2*collisionBuffer):
+				self.rect.y -= self.vy
+			if self.rect.y in range(collideY-collisionBuffer, collideY+2*collisionBuffer):
+				self.rect.x -= self.vx
+			self.lastC = collideSprite
+		else:
+			self.lastC.image = self.lastC.defaultImage
+			
+		
 
 player = Player()
 
-all_sprites = pygame.sprite.Group()
 all_sprites.add(player)
+
+	
+loadMap(currentmap)
 
 while not crashed:
 	for event in pygame.event.get():
@@ -139,9 +184,11 @@ while not crashed:
 			if event.key == downKey:
 				keysPressed[2] = 1
 	
-	drawMap(currentmap)
+	screen.fill(GREEN)
+
 	
 	all_sprites.update()
+	map_sprites.draw(screen)
 	all_sprites.draw(screen)
 	
 	pygame.display.update()
